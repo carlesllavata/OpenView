@@ -324,7 +324,10 @@ impl Model {
     pub fn shade(&self, pixel: [u8; 3], dir: [f32; 3]) -> [f32; 3] {
         let linear = [self.table[pixel[0] as usize], self.table[pixel[1] as usize], self.table[pixel[2] as usize]];
         let bright = smoothstep(0.5, 1.0, luminance(linear));
-        let mut gain = 1.0 + (HIGHLIGHT_GAIN - 1.0) * bright * bright;
+        // The sky gets its whole range back; white walls and pavements below the horizon were
+        // never that bright, so they get a quarter of it.
+        let sky = 0.25 + 0.75 * smoothstep(-0.17, 0.26, dir[1]);
+        let mut gain = 1.0 + (HIGHLIGHT_GAIN - 1.0) * bright * bright * sky;
         let mut out = linear;
         if self.sun.is_some() {
             let cos = (dir[0] * self.sun_dir[0] + dir[1] * self.sun_dir[1] + dir[2] * self.sun_dir[2]).clamp(-1.0, 1.0);

@@ -110,6 +110,26 @@ pub fn black_bands(image: &RgbImage) -> (usize, usize) {
     (top, bottom)
 }
 
+/// Cuts away the black that pads a picture on its right and bottom sides, as in the smallest tile
+/// of a panorama, where the picture sits in the top-left corner.
+pub fn trim_padding(image: &RgbImage) -> RgbImage {
+    let (w, h) = (image.width() as usize, image.height() as usize);
+    let data = image.as_raw();
+    let dark = |x: usize, y: usize| data[(y * w + x) * 3..(y * w + x) * 3 + 3].iter().all(|v| *v < 10);
+    let mut keep_h = h;
+    while keep_h > 1 && (0..w).step_by(3).all(|x| dark(x, keep_h - 1)) {
+        keep_h -= 1;
+    }
+    let mut keep_w = w;
+    while keep_w > 1 && (0..keep_h).step_by(3).all(|y| dark(keep_w - 1, y)) {
+        keep_w -= 1;
+    }
+    if keep_w == w && keep_h == h {
+        return image.clone();
+    }
+    image::imageops::crop_imm(image, 0, 0, keep_w as u32, keep_h as u32).to_image()
+}
+
 /// Fills `top` rows at the top and `bottom` rows at the bottom by stretching the nearest row of
 /// the picture and blurring it more and more towards the pole.
 pub fn fill_bands(image: &mut RgbImage, top: usize, bottom: usize) {
@@ -255,6 +275,14 @@ mod tests {
         let full = complete_sphere(&banded).expect("filled");
         assert_eq!(*full.get_pixel(5, 0), Rgb([200, 100, 50]));
         assert_eq!(*full.get_pixel(60, 31), Rgb([200, 100, 50]));
+    }
+
+    #[test]
+    fn padding_is_trimmed_from_the_right_and_the_bottom() {
+        let padded = RgbImage::from_fn(64, 64, |x, y| if x < 60 && y < 30 { Rgb([90, 120, 200]) } else { Rgb([0, 0, 0]) });
+        assert_eq!(trim_padding(&padded).dimensions(), (60, 30));
+        let full = RgbImage::from_pixel(16, 8, Rgb([50, 50, 50]));
+        assert_eq!(trim_padding(&full).dimensions(), (16, 8));
     }
 
     #[test]

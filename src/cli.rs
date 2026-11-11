@@ -16,6 +16,10 @@ OpenView - 360 panoramas and photos from map applications, at full resolution
 
 Without arguments the window opens.
 
+  OpenView --window <link or 360 image>...
+                           Open the window with these links already added; an image on
+                           disk opens in the HDRI converter instead
+
 Download:
   OpenView <link> [<link>...] [options]
     -o, --out <folder>     Destination folder (default: the current one)

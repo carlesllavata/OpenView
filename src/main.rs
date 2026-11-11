@@ -21,10 +21,14 @@ fn attach_console() {}
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    attach_console();
-    if args.is_empty() {
-        println!("{}", openview::cli::HELP);
+    if args.is_empty() || args[0] == "--window" {
+        if let Err(error) = openview::app::run(args.into_iter().skip(1).collect()) {
+            attach_console();
+            eprintln!("OpenView could not open its window: {error}");
+            std::process::exit(1);
+        }
         return;
     }
+    attach_console();
     std::process::exit(openview::cli::run(&args));
 }

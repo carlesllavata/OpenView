@@ -256,15 +256,19 @@ impl Client {
     /// The street-level panorama nearest to a position.
     pub fn nearest(&self, lat: f64, lon: f64, radius_m: f64) -> Result<PanoInfo, Error> {
         let answer = self.rpc("SingleImageSearch", &search_request(lat, lon, radius_m))?;
-        let found = parse_pano(at(&answer, &[1])).ok_or(Error::NotFound)?;
+        let mut found = parse_pano(at(&answer, &[1])).ok_or(Error::NotFound)?;
         // The search answers with whatever capture it likes; the newest one taken by the service
-        // itself is the useful default.
-        match found.history.iter().find(|c| c.kind == Kind::Official) {
-            Some(newest) if found.date.map_or(true, |(y, m, _)| (newest.year, newest.month) > (y, m)) => {
-                self.metadata(&newest.id, newest.kind).or(Ok(found))
+        // itself is the useful default. Each capture lists other dates, so look a few times.
+        for _ in 0..4 {
+            let current = found.date.map_or((0, 0), |(y, m, _)| (y, m));
+            let newer = found.history.iter().find(|c| c.kind == Kind::Official && (c.year, c.month) > current);
+            let Some(newer) = newer else { break };
+            match self.metadata(&newer.id, newer.kind) {
+                Ok(info) => found = info,
+                Err(_) => break,
             }
-            _ => Ok(found),
         }
+        Ok(found)
     }
 
     /// Resolves a pasted link completely.
@@ -310,6 +314,16 @@ pub fn tile_url(id: &str, kind: Kind, zoom: usize, x: u32, y: u32) -> String {
             "https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=maps_sv.tactile&panoid={id}&x={x}&y={y}&zoom={zoom}"
         ),
         Kind::User => format!("https://lh3.ggpht.com/jsapi2/a/b/c/x{x}-y{y}-z{zoom}/{id}"),
+    }
+}
+
+/// A small picture of another capture of the same place, for the strip of dates.
+pub fn capture_thumb_url(id: &str, kind: Kind) -> String {
+    match kind {
+        Kind::Official => format!(
+            "https://streetviewpixels-pa.googleapis.com/v1/thumbnail?cb_client=maps_sv.tactile&w=224&h=112&pitch=0&yaw=0&panoid={id}"
+        ),
+        Kind::User => tile_url(id, kind, 0, 0, 0),
     }
 }
 
