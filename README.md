@@ -5,7 +5,7 @@ cut ordinary photos out of them and turn them into HDRIs. A single Windows progr
 account. Part of the [Open3D](https://github.com/carlesllavata/Open3D) suite of open-source tools
 for 3D work.
 
-**Version 0.1.0** – in development, not released yet.
+**Version 0.1.0** – the first release.
 
 What it downloads:
 
@@ -19,9 +19,15 @@ A panorama is saved as a standard **2:1 equirectangular** image, ready for any e
 
 ## Install
 
-Unzip `openview-<version>-windows-x64.zip` anywhere and run `OpenView.exe`. Nothing else is needed:
-no Python, no runtime, no installer. To remove it, delete the folder and, if you want, the settings
-in `%APPDATA%\OpenView`.
+Download `openview-<version>-windows-x64.zip` from the
+[releases page](https://github.com/carlesllavata/OpenView/releases/latest), unzip it anywhere and run
+`OpenView.exe`. Nothing else is needed: no Python, no runtime, no installer. To remove it, delete the
+folder and, if you want, the settings in `%APPDATA%\OpenView`.
+
+The program is not code-signed, so the first time Windows may show "Windows protected your PC":
+choose *More info* and then *Run anyway*. `SHA256SUMS.txt` on the release page lets you check the
+download. The Open3D launcher cannot install OpenView yet (it only installs 3ds Max plug-ins for
+now).
 
 Windows 10 or 11, 64-bit. A 16K panorama needs about 1.5 GB of free memory while it is processed.
 
@@ -196,5 +202,6 @@ licences, listed in `THIRD-PARTY-LICENSES.txt` inside the release zip.
 
 ## Credits
 
-The idea and the list of features come from *Pano360 Downloader* by Adán Castellanos. OpenView is
-written from scratch from the description of what that program does; it contains none of its code.
+The idea and the list of features come from
+[Pano360 Downloader](https://github.com/AdanCastellanos/pano360-downloader). OpenView is written from
+scratch from the description of what that program does; it contains none of its code.

@@ -2,9 +2,9 @@
 
 What changed for users in each version of OpenView, newest first.
 
-## In development
+## 0.1.0 — 11 November 2026
 
-First version (0.1.0, not released yet).
+The first version.
 
 - Download street-level panoramas (up to 16384 × 8192), 360 photos uploaded by users and ordinary
   photos of places from a pasted link, at full resolution, as JPG, PNG or TIFF.
