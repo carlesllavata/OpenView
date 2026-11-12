@@ -2,6 +2,11 @@
 
 What changed for users in each version of OpenView, newest first.
 
+## In development
+
+- The Open3D launcher (0.3.0 or later) installs, updates and removes OpenView; the README explains
+  both ways to install it.
+
 ## 0.1.0 — 11 November 2026
 
 The first version.

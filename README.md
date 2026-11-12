@@ -19,15 +19,21 @@ A panorama is saved as a standard **2:1 equirectangular** image, ready for any e
 
 ## Install
 
-Download `openview-<version>-windows-x64.zip` from the
-[releases page](https://github.com/carlesllavata/OpenView/releases/latest), unzip it anywhere and run
-`OpenView.exe`. Nothing else is needed: no Python, no runtime, no installer. To remove it, delete the
-folder and, if you want, the settings in `%APPDATA%\OpenView`.
+Two ways, and nothing else is needed (no Python, no runtime):
+
+- **With the [Open3D launcher](https://github.com/carlesllavata/Open3D)**, version 0.3.0 or later:
+  press *Install* on OpenView's card. It goes in `%LOCALAPPDATA%\Programs\Open3D\OpenView`, with
+  shortcuts in the Start menu and on the desktop, and the launcher updates it and removes it.
+- **By hand**: download `openview-<version>-windows-x64.zip` from the
+  [releases page](https://github.com/carlesllavata/OpenView/releases/latest), unzip it anywhere and
+  run `OpenView.exe`. To remove it, delete the folder.
+
+Removing OpenView either way keeps its settings in `%APPDATA%\OpenView`; delete that folder too if
+you want them gone.
 
 The program is not code-signed, so the first time Windows may show "Windows protected your PC":
 choose *More info* and then *Run anyway*. `SHA256SUMS.txt` on the release page lets you check the
-download. The Open3D launcher cannot install OpenView yet (it only installs 3ds Max plug-ins for
-now).
+download.
 
 Windows 10 or 11, 64-bit. A 16K panorama needs about 1.5 GB of free memory while it is processed.
 
