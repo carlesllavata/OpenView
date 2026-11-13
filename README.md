@@ -6,7 +6,7 @@ account. Part of the [Open3D](https://github.com/carlesllavata/Open3D) suite of 
 for 3D work, based on the original [OpenView](https://github.com/AdanCastellanos/OpenView) by Daniel
 Castellanos (see [Credits](#credits)).
 
-**Version 0.2.0** – in development, not released yet. The latest release is 0.1.0.
+**Version 0.2.0** – based on the original OpenView: its interface, its logo and its methods.
 
 What it downloads:
 
@@ -183,8 +183,9 @@ OpenView hdri panorama.jpg --sun-at 0.31,0.22      the sun is there (0–1 acros
 ## Which link to copy
 
 Open the panorama in the map application (enter the street view, the 360 photo or the photo) and
-copy the address from the browser's address bar; the links of the *Share* button work too. A link
-that only has a position (`@lat,lon`) downloads the newest street-level panorama within 50 m.
+copy the address from the browser's address bar. A link that only has a position (`@lat,lon`)
+downloads the newest street-level panorama within 50 m. Short links of the *Share* button are followed
+too (see the limits below).
 
 ## Limits and notes
 

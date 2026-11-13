@@ -2,9 +2,9 @@
 
 What changed for users in each version of OpenView, newest first.
 
-## In development
+## 0.2.0 — 13 November 2026
 
-Version 0.2.0. OpenView is now based on the original OpenView by Daniel Castellanos: it has its look
+OpenView is now based on the original OpenView by Daniel Castellanos: it has its look
 and its logo, and works the way it does.
 
 - **New window.** The interface of the original OpenView: cards with a large preview, the kind, the
