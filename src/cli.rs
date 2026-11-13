@@ -6,10 +6,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
-use crate::hdri::{self, HdrFormat, Sun};
+use crate::hdri::{self, HdrFormat};
 use crate::links;
 use crate::pano::{self, Control, Format, Options, Step};
-use crate::service::{Client, Found};
+use crate::service::Client;
 
 pub const HELP: &str = "\
 OpenView - 360 panoramas and photos from map applications, at full resolution
@@ -34,11 +34,13 @@ Download:
 
 Convert a 360 image to HDRI:
   OpenView hdri <image> [options]
-        --sun <strength>   Light of the sun compared with the sky (default 6; clear 4-8, haze 1-3)
+        --sun <ratio>      Light of the sun compared with the sky (default 5; clear 4-8, haze 1-3)
         --no-sun           Overcast day: no sun
-        --sun-size <deg>   Diameter of the sun in degrees (default 1.5)
+        --sun-size <deg>   Radius of the sun in degrees (default 1)
         --sun-at <x,y>     Where the sun is, from 0 to 1 across and down the image
-        --res <px>         Width of the HDRI (default 8192; never larger than the image)
+        --highlights <x>   Boost of the sky and highlights (default 3; 1 = none)
+        --exposure <ev>    Overall exposure in stops (default 0)
+        --res <px>         Width of the HDRI (default 8192, or original; never larger than the image)
         --format <type>    exr (default) or hdr
     -o, --out <file>       File to write (default: next to the image, ending in _hdri)
 
@@ -114,13 +116,15 @@ fn parse_hdri(args: &[String]) -> Result<Command, String> {
     while i < args.len() {
         let arg = args[i].as_str();
         match arg {
-            "--sun" => params.sun_strength = number(value(args, &mut i, arg)?, arg)?,
-            "--no-sun" => params.sun = Sun::None,
-            "--sun-size" => params.sun_size_deg = number(value(args, &mut i, arg)?, arg)?,
+            "--sun" => params.sun_ratio = number(value(args, &mut i, arg)?, arg)?,
+            "--no-sun" => params.sun_ratio = 0.0,
+            "--sun-size" => params.sun_size = number(value(args, &mut i, arg)?, arg)?,
+            "--highlights" => params.highlights = number(value(args, &mut i, arg)?, arg)?,
+            "--exposure" => params.exposure = number(value(args, &mut i, arg)?, arg)?,
             "--sun-at" => {
                 let text = value(args, &mut i, arg)?;
                 let (x, y) = text.split_once(',').ok_or_else(|| format!("{arg} needs x,y"))?;
-                params.sun = Sun::At(number(x.trim(), arg)?, number(y.trim(), arg)?);
+                params.sun_pos = Some((number(x.trim(), arg)?, number(y.trim(), arg)?));
             }
             "--res" => {
                 let text = value(args, &mut i, arg)?;
@@ -138,7 +142,7 @@ fn parse_hdri(args: &[String]) -> Result<Command, String> {
         i += 1;
     }
     let image = image.ok_or("no image given")?;
-    Ok(Command::Hdri { image, params, width, format, out })
+    Ok(Command::Hdri { image, params: params.clamped(), width, format, out })
 }
 
 /// Runs a command line and returns the exit code.
@@ -182,21 +186,21 @@ fn run_download(mut links: Vec<String>, lists: &[PathBuf], options: &Options) ->
     for link in &links {
         println!("{link}");
         let result = match client.find(link) {
-            Ok(Found::Pano(info)) => {
-                let (w, h) = info.sizes[info.zoom_for(options.max_width)];
+            Ok(info) => {
+                let (w, h) = info.sizes.get(info.zoom_for(options.max_width)).copied().unwrap_or((0, 0));
+                let kind = match (info.flat, info.kind) {
+                    (true, _) => "photo",
+                    (false, links::Kind::Official) => "street-level panorama",
+                    (false, links::Kind::User) => "user panorama",
+                };
                 println!(
-                    "  {} panorama, {} x {}{}{}",
-                    if info.kind == links::Kind::Official { "street-level" } else { "user" },
-                    w,
-                    h,
+                    "  {kind}{}{}{}{}",
+                    if w > 0 { format!(", {w} x {h}") } else { String::new() },
                     if info.date.is_some() { format!(", {}", info.date_text()) } else { String::new() },
+                    info.address.as_ref().map(|a| format!(", {}", a.split(" / ").next().unwrap_or(a))).unwrap_or_default(),
                     info.author.as_ref().map(|a| format!(", by {a}")).unwrap_or_default(),
                 );
-                pano::download(&client, &info, options, &control)
-            }
-            Ok(Found::Photo(photo)) => {
-                println!("  photo");
-                pano::download_photo(&client, &photo, &options.out_dir, &control)
+                pano::download(&client, &info, link, options, &control)
             }
             Err(e) => Err(pano::Error::Service(e)),
         };
@@ -226,13 +230,21 @@ fn run_hdri(image: &Path, params: &hdri::Params, width: Option<u32>, format: Hdr
     };
     let out = out.unwrap_or_else(|| hdri::output_path(image, format));
     let small = hdri::analysis_copy(&source.rgb);
-    match hdri::Model::new(&small, params, small.width()).sun {
-        Some((x, y)) => println!("sun at {x:.3},{y:.3} (strength {}, {} degrees)", params.sun_strength, params.sun_size_deg),
+    let model = hdri::Model::new(&small, params);
+    match model.sun_used {
+        Some((x, y)) => println!("sun at {x:.3},{y:.3} (ratio {}, radius {} degrees, +{:.1} EV)", params.sun_ratio, params.sun_size, model.gain.log2()),
         None => println!("no sun"),
     }
-    match hdri::write(&source, params, width, format, &out) {
+    let cancel = AtomicBool::new(false);
+    let progress = |f: f32| {
+        print!("
+  {:5.1}%", f * 100.0);
+        let _ = std::io::stdout().flush();
+    };
+    match hdri::write(&source, params, width, format, &out, &cancel, &progress) {
         Ok((w, h)) => {
-            println!("saved {} ({w} x {h})", out.display());
+            println!("
+saved {} ({w} x {h})", out.display());
             0
         }
         Err(e) => {
@@ -289,12 +301,14 @@ mod tests {
         let command = parse(&args("hdri pano.jpg --sun 8 --sun-size 2 --res 4096 --format hdr")).unwrap();
         let Command::Hdri { image, params, width, format, out } = command else { panic!("not hdri") };
         assert_eq!(image, PathBuf::from("pano.jpg"));
-        assert_eq!((params.sun_strength, params.sun_size_deg, params.sun), (8.0, 2.0, Sun::Auto));
+        assert_eq!((params.sun_ratio, params.sun_size, params.sun_pos), (8.0, 2.0, None));
         assert_eq!((width, format, out), (Some(4096), HdrFormat::Hdr, None));
         let Command::Hdri { params, width, .. } = parse(&args("hdri p.png --no-sun --res original")).unwrap() else { panic!() };
-        assert_eq!((params.sun, width), (Sun::None, None));
+        assert_eq!((params.sun_ratio, width), (0.0, None));
         let Command::Hdri { params, .. } = parse(&args("hdri p.png --sun-at 0.25,0.3")).unwrap() else { panic!() };
-        assert_eq!(params.sun, Sun::At(0.25, 0.3));
+        assert_eq!(params.sun_pos, Some((0.25, 0.3)));
+        let Command::Hdri { params, .. } = parse(&args("hdri p.png --highlights 5 --exposure -1")).unwrap() else { panic!() };
+        assert_eq!((params.highlights, params.exposure), (5.0, -1.0));
     }
 
     #[test]

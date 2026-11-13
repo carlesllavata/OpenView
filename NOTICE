@@ -1,0 +1,17 @@
+OpenView, part of the Open3D suite. Free software under the GNU General Public License v3.0 or
+later (see LICENSE).
+
+This program includes and is derived from "OpenView" by Daniel Castellanos
+(https://github.com/AdanCastellanos/OpenView), Copyright (c) 2026 Daniel Castellanos, used under
+the MIT License, whose full text is in LICENSES/MIT-OpenView-original.txt:
+
+- ui/index.html: its interface (markup, styles and script), with its texts moved to ui/i18n/es.json
+  (its Spanish texts, unchanged) and ui/i18n/en.json (an English translation).
+- assets/icon.ico, assets/logo.png, assets/logo.svg: its logo, unchanged.
+- src/service.rs, src/pano.rs, src/hdri.rs, src/web.rs, src/text.rs and the levelling matrix in
+  src/geom.rs: requests to the map service, download, crop and HDRI methods, the interface's API and
+  its messages, ported from its Python code to Rust.
+
+The MIT License asks that its copyright notice and permission notice be included in all copies or
+substantial portions of that software; this file and LICENSES/MIT-OpenView-original.txt do that, in
+the source and in every release.

@@ -37,14 +37,8 @@ pub enum Target {
     Pano { id: String, kind: Kind },
     /// Only a position: the nearest street-level panorama is used.
     Near { lat: f64, lon: f64 },
-    /// An ordinary (flat) photo of a place.
-    Photo {
-        id: String,
-        /// Address of the image without its size suffix, when the link carries it.
-        base_url: Option<String>,
-        /// Size announced by the link.
-        size: Option<(u32, u32)>,
-    },
+    /// The address of a hosted image itself (a photo), without its size suffix.
+    Image { id: String, base_url: String },
     /// A short "share" link that has to be followed first.
     Short(String),
 }
@@ -149,31 +143,13 @@ fn parse_lat_lon(text: &str) -> Option<(f64, f64)> {
     ((-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon)).then_some((lat, lon))
 }
 
-/// The image a link's `data=` block points to.
-struct ImageRef {
-    id: String,
-    kind_code: u64,
-    /// `3e` field: 12 marks a flat photo.
-    form: Option<u64>,
-    address: Option<String>,
-    width: Option<u32>,
-    height: Option<u32>,
-    /// The viewer mode announced before the reference: 1 street view, 2 photo.
-    mode: Option<u64>,
-}
-
-fn image_ref(url: &str) -> Option<ImageRef> {
+/// The image a link's `data=` block points to: its identifier and the service's kind number.
+fn image_ref(url: &str) -> Option<(String, u64)> {
     let start = url.find("data=")?;
     let data = &url[start + 5..];
     let data = data.split(|c| c == '?' || c == '&' || c == '#').next().unwrap_or(data);
     let tokens: Vec<&str> = data.split('!').filter(|t| !t.is_empty()).collect();
-    let mut mode = None;
     for (i, token) in tokens.iter().enumerate() {
-        if let Some(value) = token.strip_prefix("1e") {
-            if let Ok(v) = value.parse::<u64>() {
-                mode = Some(v);
-            }
-        }
         let Some(id) = token.strip_prefix("1s") else { continue };
         let Some(kind_code) = tokens.get(i + 1).and_then(|t| t.strip_prefix("2e")).and_then(|v| v.parse().ok())
         else {
@@ -183,23 +159,18 @@ fn image_ref(url: &str) -> Option<ImageRef> {
         if id.starts_with("0x") || !looks_like_id(&id) {
             continue;
         }
-        let mut found = ImageRef { id, kind_code, form: None, address: None, width: None, height: None, mode };
-        for token in &tokens[i + 2..] {
-            if let Some(v) = token.strip_prefix("3e") {
-                found.form = found.form.or(v.parse().ok());
-            } else if let Some(v) = token.strip_prefix("6s") {
-                found.address = found.address.or(Some(percent_decode(v)));
-            } else if let Some(v) = token.strip_prefix("7i") {
-                found.width = found.width.or(v.parse().ok());
-            } else if let Some(v) = token.strip_prefix("8i") {
-                found.height = found.height.or(v.parse().ok());
-            } else if token.starts_with("1s") {
-                break;
-            }
-        }
-        return Some(found);
+        return Some((id, kind_code));
     }
     None
+}
+
+/// The address of the image that some photo links carry inside (`!6s...`), without its size
+/// suffix.
+pub fn image_address(link: &str) -> Option<String> {
+    let start = link.find("!6s")? + 3;
+    let rest = &link[start..];
+    let address = percent_decode(rest.split('!').next().unwrap_or(rest));
+    photo_base_url(&address)
 }
 
 /// The address of a hosted photo without the size suffix that follows the last `=`.
@@ -240,26 +211,16 @@ pub fn parse(link: &str) -> Result<Target, LinkError> {
         return Ok(Target::Short(link.to_string()));
     }
     // A direct link to a hosted photo.
-    if let Some(base) = photo_base_url(link) {
-        let id = base.rsplit('/').next().unwrap_or("photo").to_string();
-        return Ok(Target::Photo { id, base_url: Some(base), size: None });
+    if let Some(base_url) = photo_base_url(link) {
+        let id = base_url.rsplit('/').next().unwrap_or("photo").to_string();
+        return Ok(Target::Image { id, base_url });
     }
     if !host.contains("google") {
         return Err(LinkError::NotRecognised);
     }
-    if let Some(image) = image_ref(link) {
-        let size = image.width.zip(image.height);
-        let spherical = size.is_some_and(|(w, h)| w == h * 2);
-        let flat = match image.form {
-            Some(12) => true,
-            Some(11) => false,
-            _ => image.mode == Some(2) && !spherical,
-        };
-        if flat && image.kind_code != 0 {
-            let base_url = image.address.as_deref().and_then(photo_base_url);
-            return Ok(Target::Photo { id: image.id, base_url, size });
-        }
-        return Ok(Target::Pano { id: image.id, kind: Kind::from_code(image.kind_code) });
+    // Whether it is a 360 image or a flat photo is the service's to say, not the link's.
+    if let Some((id, kind_code)) = image_ref(link) {
+        return Ok(Target::Pano { id, kind: Kind::from_code(kind_code) });
     }
     for key in ["panoid", "pano"] {
         if let Some(id) = query_value(link, key) {
@@ -310,23 +271,12 @@ mod tests {
     #[test]
     fn place_link_skips_the_feature_id_and_finds_the_photo() {
         let link = "https://www.google.com/maps/place/Somewhere/@40.41,-3.70,3a,75y,90t/data=!3m8!1e2!3m6!1sAF1QipAAAAAAAAAAAAAAAAAAAA!2e10!3e12!6shttps:%2F%2Flh3.googleusercontent.com%2Fp%2FAF1QipAAAAAAAAAAAAAAAAAAAA%3Dw203-h152-k-no!7i4032!8i3024!4m7!3m6!1s0xd42287d6da3df33:0x4a1c1d1e1f1a1b1c!8m2!3d40.41!4d-3.70";
+        assert_eq!(parse(link), Ok(Target::Pano { id: "AF1QipAAAAAAAAAAAAAAAAAAAA".into(), kind: Kind::User }));
         assert_eq!(
-            parse(link),
-            Ok(Target::Photo {
-                id: "AF1QipAAAAAAAAAAAAAAAAAAAA".into(),
-                base_url: Some("https://lh3.googleusercontent.com/p/AF1QipAAAAAAAAAAAAAAAAAAAA".into()),
-                size: Some((4032, 3024)),
-            })
+            image_address(link).as_deref(),
+            Some("https://lh3.googleusercontent.com/p/AF1QipAAAAAAAAAAAAAAAAAAAA")
         );
-    }
-
-    #[test]
-    fn photo_mode_with_a_two_to_one_image_is_a_panorama() {
-        let link = "https://www.google.com/maps/place/X/@1,2,3a/data=!3m8!1e2!3m6!1sAF1QipBBBBBBBBBBBBBBBBBBBB!2e10!6shttps:%2F%2Flh3.googleusercontent.com%2Fp%2FAF1QipBBBBBBBBBBBBBBBBBBBB%3Dw203-h100-k-no!7i8000!8i4000";
-        assert_eq!(
-            parse(link),
-            Ok(Target::Pano { id: "AF1QipBBBBBBBBBBBBBBBBBBBB".into(), kind: Kind::User })
-        );
+        assert_eq!(image_address("https://www.google.com/maps/@1,2,3a/data=!3m4!1e1!3m2!1sAAAAAAAAAAAAAAAAAAAAAA!2e0"), None);
     }
 
     #[test]
@@ -366,10 +316,9 @@ mod tests {
     fn direct_photo_address_is_a_photo() {
         assert_eq!(
             parse("https://lh3.googleusercontent.com/p/AF1QipCCCCCCCCCCCCCCCCCCCC=w408-h306-k-no"),
-            Ok(Target::Photo {
+            Ok(Target::Image {
                 id: "AF1QipCCCCCCCCCCCCCCCCCCCC".into(),
-                base_url: Some("https://lh3.googleusercontent.com/p/AF1QipCCCCCCCCCCCCCCCCCCCC".into()),
-                size: None,
+                base_url: "https://lh3.googleusercontent.com/p/AF1QipCCCCCCCCCCCCCCCCCCCC".into(),
             })
         );
     }

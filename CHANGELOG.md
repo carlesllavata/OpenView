@@ -4,6 +4,36 @@ What changed for users in each version of OpenView, newest first.
 
 ## In development
 
+Version 0.2.0. OpenView is now based on the original OpenView by Daniel Castellanos: it has its look
+and its logo, and works the way it does.
+
+- **New window.** The interface of the original OpenView: cards with a large preview, the kind, the
+  place, the resolution, the date and the author; a bar at the bottom with **Download all**; short
+  notices when a file is saved; **Clear finished**; a 360 viewer that fills the window.
+- **English and Spanish.** A button at the top switches the language; at first it follows Windows.
+  The theme (light or dark) also follows Windows until you choose one.
+- **Ordinary photos are recognised by themselves**, whatever link you paste, are shown larger with
+  **View photo**, and are saved at their original size exactly as stored.
+- **360 photos of users download in one piece**, faster, and are kept exactly as stored when no
+  option changes them.
+- **Cards show the name of the place** when the map service has one.
+- **Create HDRI works like the original OpenView's**: new **Sky and highlight boost** and **Overall
+  exposure** controls and **Reset values**; the sun size is now its radius (1° at first) and its
+  strength starts at 5; below the preview, the sun's height, how much it was raised and the dynamic
+  range. EXR files are about half the size, and a conversion shows its progress and can be
+  cancelled.
+- **Crops** are named after where they look (`_crop_<direction>_<height>_<field of view>`) and can
+  be up to 20,000 pixels on their longest side.
+- **TIFF files are compressed** (LZW, without loss) and PNG files are smaller.
+- **Clearer messages** when there is no connection, the folder cannot be written, the disk is full
+  or the service does not have a panorama.
+- The window needs WebView2, the web engine built into Windows; without it OpenView opens in your
+  browser.
+- Command line: `OpenView hdri` takes `--highlights` and `--exposure`; `--sun` is now the ratio to
+  the sky (5 by default) and `--sun-size` the radius (1° by default). `--window <image>` opens the
+  window in the HDRI converter.
+- The options of 0.1.0 are not carried over: the folder and the options start from their defaults
+  once.
 - The Open3D launcher (0.3.0 or later) installs, updates and removes OpenView; the README explains
   both ways to install it.
 

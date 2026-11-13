@@ -98,14 +98,21 @@ const ROLL_SIGN: f64 = 1.0;
 /// was level enough for it not to matter.
 pub fn level_matrix(tilt_deg: f64, roll_deg: f64) -> Option<Mat3> {
     let (pitch, roll) = camera_lean(tilt_deg, roll_deg);
-    if pitch.abs() < 0.03 && roll.abs() < 0.03 {
+    if pitch.abs() <= 0.05 && roll.abs() <= 0.05 {
         return None;
     }
-    // A wild value is a broken record, not a camera on its side.
-    if pitch.abs() > 45.0 || roll.abs() > 45.0 {
+    // A wild value is a broken record, not a camera on its side: better to touch nothing.
+    if pitch.abs() > 25.0 || roll.abs() > 25.0 {
         return None;
     }
     Some(lean_matrix(pitch, roll, PITCH_SIGN, ROLL_SIGN))
+}
+
+/// The same rotation as [`level_matrix`] for the 360 viewer of the interface, whose forward
+/// direction is -z instead of +z: flipping z on both sides of the matrix changes the sign of the
+/// entries that mix z with x or y.
+pub fn viewer_matrix(m: &Mat3) -> Mat3 {
+    [[m[0][0], m[0][1], -m[0][2]], [m[1][0], m[1][1], -m[1][2]], [-m[2][0], -m[2][1], m[2][2]]]
 }
 
 /// Reads colours from an equirectangular image at any direction.
@@ -268,7 +275,7 @@ pub fn perspective(
 /// detail as a panorama `src_width` pixels wide.
 pub fn max_crop_width(src_width: u32, hfov: f64) -> u32 {
     let width = 2.0 * (hfov / 2.0).tan() * src_width as f64 / TAU;
-    width.round().clamp(16.0, 32768.0) as u32
+    width.round().clamp(16.0, 1.0e6) as u32
 }
 
 /// Where a direction of the panorama falls in a view, in pixels from the view's top-left corner.
@@ -430,7 +437,29 @@ mod tests {
         assert!(level_matrix(90.01, 359.99).is_none());
         assert!(level_matrix(92.0, 358.5).is_some());
         assert!(level_matrix(170.0, 0.0).is_none());
+        assert!(level_matrix(90.0, 30.0).is_none());
         assert_eq!(camera_lean(92.0, 358.5), (2.0, -1.5));
+    }
+
+    #[test]
+    fn the_viewer_matrix_is_the_same_rotation_seen_with_z_flipped() {
+        let m = level_matrix(93.0, 2.0).expect("a lean");
+        let v = viewer_matrix(&m);
+        let d = [0.3, -0.2, 0.9];
+        let ours = apply(&m, d);
+        let theirs = apply(&v, [d[0], d[1], -d[2]]);
+        assert!((ours[0] - theirs[0]).abs() < 1e-12 && (ours[1] - theirs[1]).abs() < 1e-12);
+        assert!((ours[2] + theirs[2]).abs() < 1e-12);
+        // The original app builds it as rz(roll) * rx(-tilt) in its own frame.
+        let (t, r) = ((-3.0f64).to_radians(), 2.0f64.to_radians());
+        let rx = [[1.0, 0.0, 0.0], [0.0, t.cos(), -t.sin()], [0.0, t.sin(), t.cos()]];
+        let rz = [[r.cos(), -r.sin(), 0.0], [r.sin(), r.cos(), 0.0], [0.0, 0.0, 1.0]];
+        let reference = mul(&rz, &rx);
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!((v[i][j] - reference[i][j]).abs() < 1e-12, "entry {i},{j}");
+            }
+        }
     }
 
     #[test]

@@ -34,6 +34,11 @@ pub fn face_north(image: &RgbImage, heading_deg: f64) -> RgbImage {
     shift_x(image, north_shift(image.width(), heading_deg))
 }
 
+/// Whether an image is a 360 photo that does not cover the whole sphere: wider than 2:1.
+pub fn is_partial(width: u32, height: u32) -> bool {
+    height > 0 && width as f64 / height as f64 - 2.0 > 0.02
+}
+
 /// One row of colours that can be averaged over any wrapped span quickly.
 struct EdgeRow {
     /// Running sums, one more entry than pixels, per channel.
@@ -260,6 +265,12 @@ mod tests {
         assert!(full.pixels().all(|p| p[0] > 0 || p[1] > 0 || p[2] > 0));
         // At the pole every column is the same colour.
         assert_eq!(full.get_pixel(0, 199), full.get_pixel(123, 199));
+    }
+
+    #[test]
+    fn only_images_wider_than_two_to_one_are_partial() {
+        assert!(is_partial(4000, 1000));
+        assert!(!is_partial(4000, 2000) && !is_partial(4001, 2000) && !is_partial(900, 964));
     }
 
     #[test]

@@ -4,8 +4,8 @@
     python -I tools/package.py            build, test and write dist/
     python -I tools/package.py --no-test  skip the tests
 
-Writes dist/openview-<version>-windows-x64.zip (OpenView.exe, README.md, LICENSE, CHANGELOG.md and
-THIRD-PARTY-LICENSES.txt) and dist/SHA256SUMS.txt. Refuses to build when the version in Cargo.toml
+Writes dist/openview-<version>-windows-x64.zip (OpenView.exe, README.md, LICENSE, NOTICE,
+LICENSES/, CHANGELOG.md and THIRD-PARTY-LICENSES.txt) and dist/SHA256SUMS.txt. Refuses to build when the version in Cargo.toml
 is not the one the README and the changelog talk about, or when a library has a licence that
 cannot be distributed under GPL-3.0-or-later.
 
@@ -157,8 +157,11 @@ def main():
     archive = DIST / name
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         z.write(exe, "OpenView.exe")
-        for document in ("README.md", "LICENSE", "CHANGELOG.md"):
+        for document in ("README.md", "LICENSE", "NOTICE", "CHANGELOG.md"):
             z.write(ROOT / document, document)
+        # Licences of code OpenView includes (the original OpenView, MIT).
+        for licence in sorted((ROOT / "LICENSES").glob("*.txt")):
+            z.write(licence, f"LICENSES/{licence.name}")
         z.writestr("THIRD-PARTY-LICENSES.txt", notices)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (DIST / "SHA256SUMS.txt").write_text(f"{digest}  {name}\n", encoding="utf-8", newline="\n")
